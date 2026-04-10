@@ -5,27 +5,27 @@ import { VehicleSpec } from './VehicleSpec'
 @Entity('vehicles')
 export class Vehicle {
   @PrimaryGeneratedColumn('uuid')
-  id: string
+  id!: string
 
   @ManyToOne(() => Segment, segment => segment.vehicles)
   @JoinColumn({ name: 'segment_id' })
-  segment: Segment
+  segment!: Segment
 
   @Column({ type: 'varchar2', length: 100 })
-  brand: string
+  brand!: string
 
   @Column({ type: 'varchar2', length: 100 })
-  model: string
+  model!: string
 
   @Column({ type: 'varchar2', length: 100 })
-  version: string
+  version!: string
 
   @Column({ name: 'year_model', type: 'number', nullable: true })
-  yearModel: number
+  yearModel!: number
 
   @Column({ name: 'created_at', type: 'timestamp with time zone', default: () => 'CURRENT_TIMESTAMP' })
-  createdAt: Date
+  createdAt!: Date
 
   @OneToOne(() => VehicleSpec, spec => spec.vehicle)
-  spec: VehicleSpec
+  spec!: VehicleSpec
 }

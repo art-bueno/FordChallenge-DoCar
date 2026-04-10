@@ -10,7 +10,7 @@ export const AppDataSource = new DataSource({
   port: Number(process.env.DB_PORT) || 1521,
   username: process.env.DB_USER,
   password: process.env.DB_PASS,
-  serviceName: process.env.DB_SERVICE,
+  sid: process.env.DB_SERVICE,
   synchronize: true,
   logging: true,
   entities: [Segment, Vehicle, VehicleSpec],
