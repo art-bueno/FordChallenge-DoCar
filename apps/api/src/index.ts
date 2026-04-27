@@ -4,6 +4,7 @@ dotenv.config()
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
 import { AppDataSource } from '@ford-intel/database'
+import { vehicleRoutes } from './routes/vehicles'
 
 const app = Fastify({ logger: true })
 
@@ -17,6 +18,9 @@ const start = async () => {
   try {
     await AppDataSource.initialize()
     console.log('Banco de dados conectado!')
+
+    await app.register(vehicleRoutes, { prefix: '/api' })
+
     await app.listen({ port: 3333, host: '0.0.0.0' })
     console.log('API rodando em http://localhost:3333')
   } catch (err) {

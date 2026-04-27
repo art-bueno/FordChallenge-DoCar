@@ -106,6 +106,13 @@ export class VehicleSpec {
   @Column({ type: 'clob', nullable: true })
   extras!: Record<string, unknown>
 
+  @Column({ type: 'varchar2', length: 50, default: 'ia_generated' })
+  source!: string
+
+  @Column({ type: 'varchar2', length: 20, default: 'active' })
+  status!: string
+  
+  
   @Column({ name: 'source_url', type: 'varchar2', length: 500, nullable: true })
   sourceUrl!: string
 

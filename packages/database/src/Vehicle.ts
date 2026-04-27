@@ -23,6 +23,12 @@ export class Vehicle {
   @Column({ name: 'year_model', type: 'number', nullable: true })
   yearModel!: number
 
+  @Column({ name: 'year_model_end', type: 'number', nullable: true })
+  yearModelEnd!: number
+
+  @Column({ name: 'is_midyear', type: 'number', width: 1, default: 0 })
+  isMidyear!: boolean
+
   @Column({ name: 'created_at', type: 'timestamp with time zone', default: () => 'CURRENT_TIMESTAMP' })
   createdAt!: Date
 
