@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm'
 import { Segment } from './Segment'
 import { Vehicle } from './Vehicle'
 import { VehicleSpec } from './VehicleSpec'
+import { AuditLog } from './AuditLog'
 
 export const AppDataSource = new DataSource({
   type: 'oracle',
@@ -12,6 +13,6 @@ export const AppDataSource = new DataSource({
   password: process.env.DB_PASS,
   sid: process.env.DB_SERVICE,
   synchronize: true,
-  logging: true,
-  entities: [Segment, Vehicle, VehicleSpec],
+  logging: ['error'],
+  entities: [Segment, Vehicle, VehicleSpec, AuditLog],
 })

@@ -3,13 +3,10 @@ import { AppDataSource } from '@ford-intel/database'
 import { Vehicle } from '@ford-intel/database'
 import { VehicleSpec } from '@ford-intel/database'
 import { extractVehicleSpecs, extractVehicleSpecsFromPdf } from '../services/extractor'
+import { logAudit } from '../services/audit'
 import * as path from 'path'
 import * as fs from 'fs'
 
-/**
- * Mapeamento de PDFs disponíveis por marca/modelo/versão.
- * Quando disponível, o agente usa o PDF oficial para extração precisa.
- */
 const PDF_MAP: Record<string, string> = {
   'ford-ranger-raptor':            'fichaRaptor.pdf',
   'toyota-hilux-srx':              'fichaHilux.pdf',
@@ -18,10 +15,6 @@ const PDF_MAP: Record<string, string> = {
   'mitsubishi-l200 triton-katana': 'fichaTritonMitsubish.pdf',
 }
 
-/**
- * Retorna o caminho do PDF se existir para o veículo informado.
- * A chave é gerada como "marca-modelo-versão" em lowercase.
- */
 function findPdfPath(brand: string, model: string, version: string): string | null {
   const key = `${brand}-${model}-${version}`
     .toLowerCase()
@@ -35,16 +28,11 @@ function findPdfPath(brand: string, model: string, version: string): string | nu
   return fs.existsSync(fullPath) ? fullPath : null
 }
 
-/**
- * Converte o JSON snake_case retornado pelo agente
- * para os campos camelCase da entidade VehicleSpec.
- */
 function mapSpecsToEntity(s: Record<string, unknown>) {
   const b = (v: unknown) => v === null ? null : Number(v)
   const n = (v: unknown) => v === null ? null : Number(v)
 
   return {
-    // Engine & Transmission
     pesoOrdemMarchaKg:              n(s['peso_ordem_marcha_kg']),
     cilindradaL:                    n(s['cilindrada_l']),
     potenciaCv:                     n(s['potencia_cv']),
@@ -63,7 +51,6 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     tecnologiaBiturbo:              b(s['tecnologia_biturbo']),
     motorEletrico:                  b(s['motor_eletrico']),
     eAutonomyKm:                    n(s['e_autonomy_km']),
-    // Wheels
     rodasLigaLeve:                  b(s['rodas_liga_leve']),
     rodasPolegadas:                 n(s['rodas_polegadas']),
     pneusAtr:                       b(s['pneus_atr']),
@@ -72,7 +59,6 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     pneusAutoVedantes:              b(s['pneus_auto_vedantes']),
     estepeFullSize:                 b(s['estepe_full_size']),
     estepeTemporario:               b(s['estepe_temporario']),
-    // Connectivity
     lojaAplicativos:                b(s['loja_aplicativos']),
     assistenteDigital:              b(s['assistente_digital']),
     travaDestravaRemoto:            b(s['trava_destrava_remoto']),
@@ -85,7 +71,6 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     ubi:                            b(s['ubi']),
     wifiHotspot:                    b(s['wifi_hotspot']),
     atualizacaoOta:                 b(s['atualizacao_ota']),
-    // Multimídia
     bluetooth:                      b(s['bluetooth']),
     cameraTraseira:                 b(s['camera_traseira']),
     camera180Graus:                 b(s['camera_180_graus']),
@@ -103,11 +88,9 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     androidAppleWireless:           b(s['android_apple_wireless']),
     painelInstrumentoColoridoPol:   n(s['painel_instrumento_colorido_pol']),
     usbQtd:                         n(s['usb_qtd']),
-    // Air Conditioning
     arCondSaida2aFileira:           b(s['ar_cond_saida_2a_fileira']),
     arCondAutomaticoDigital:        b(s['ar_cond_automatico_digital']),
     arCondDuasZonas:                b(s['ar_cond_duas_zonas']),
-    // Safety
     controleAntiCapotamento:        b(s['controle_anti_capotamento']),
     freioAutomaticoParado:          b(s['freio_automatico_parado']),
     tpms:                           b(s['tpms']),
@@ -118,7 +101,6 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     freioAutomaticoAposImpacto:     b(s['freio_automatico_apos_impacto']),
     assistenciaDirecaoDefensiva:    b(s['assistencia_direcao_defensiva']),
     airbagsQtd:                     n(s['airbags_qtd']),
-    // High Tech
     pilotoAutomatico:               b(s['piloto_automatico']),
     limitadorVelocidade:            b(s['limitador_velocidade']),
     pilotoAutomaticoAdaptativo:     b(s['piloto_automatico_adaptativo']),
@@ -141,26 +123,21 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     blisAlertaTrafegoCruzado:       b(s['blis_alerta_trafego_cruzado']),
     reverseAeb:                     b(s['reverse_aeb']),
     keylessEntryPeps:               b(s['keyless_entry_peps']),
-    // Global Closing
     alarmeVolumetrico:              b(s['alarme_volumetrico']),
     globalOpening:                  b(s['global_opening']),
     travaEletricaPortas:            b(s['trava_eletrica_portas']),
     vidroEletricoTraseiro:          b(s['vidro_eletrico_traseiro']),
     globalClosing:                  b(s['global_closing']),
-    // Trim
     bancosCouro:                    b(s['bancos_couro']),
     manoplaCambioCouro:             b(s['manopla_cambio_couro']),
     volanteCouro:                   b(s['volante_couro']),
     painelSoftTouch:                b(s['painel_soft_touch']),
-    // SunRoof
     tetoSolarEletrico:              b(s['teto_solar_eletrico']),
     tetoSolarPanoramico:            b(s['teto_solar_panoramico']),
-    // Seats
     bancoTraseiroAquecido:          b(s['banco_traseiro_aquecido']),
     bancosAquecimentoFrontal:       b(s['bancos_aquecimento_frontal']),
     bancosRefrigeradosFrontal:      b(s['bancos_refrigerados_frontal']),
     bancoPosicoesEletrico:          n(s['banco_posicoes_eletrico']),
-    // Lights
     faroisFullLed:                  b(s['farois_full_led']),
     drlSignature:                   b(s['drl_signature']),
     farolAltoAutomatico:            b(s['farol_alto_automatico']),
@@ -169,7 +146,6 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     faroisNeblinaLed:               b(s['farois_neblina_led']),
     faroisMatrixLed:                b(s['farois_matrix_led']),
     iluminacaoCacamba:              b(s['iluminacao_cacamba']),
-    // 4x4
     tracao4x4HighLow:               b(s['tracao_4x4_high_low']),
     diferencialTraseiroBlocante:    b(s['diferencial_traseiro_blocante']),
     santoAntonio:                   b(s['santo_antonio']),
@@ -178,7 +154,6 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     terrainManagementSystem:        b(s['terrain_management_system']),
     tracaoAwd:                      b(s['tracao_awd']),
     suspensaoFoxLiveValve:          b(s['suspensao_fox_live_valve']),
-    // Others
     anosGarantia:                   n(s['anos_garantia']),
     apoioBracoTraseiro:             b(s['apoio_braco_traseiro']),
     cabineDupla:                    b(s['cabine_dupla']),
@@ -203,7 +178,8 @@ export async function vehicleRoutes(app: FastifyInstance) {
   const vehicleRepo = AppDataSource.getRepository(Vehicle)
   const specRepo = AppDataSource.getRepository(VehicleSpec)
 
-  app.get('/vehicles', async () => {
+  app.get('/vehicles', async (req, reply) => {
+    await logAudit('list_vehicles', req, 'success')
     return vehicleRepo.find({ relations: ['spec', 'segment'] })
   })
 
@@ -216,13 +192,31 @@ export async function vehicleRoutes(app: FastifyInstance) {
     })
 
     if (!vehicle) {
+      await logAudit('get_vehicle', req, 'error', { id }, 'Veículo não encontrado')
       return reply.status(404).send({ error: 'Veículo não encontrado' })
     }
 
+    await logAudit('get_vehicle', req, 'success', { id })
     return vehicle
   })
 
-  app.post('/vehicles', async (req, reply) => {
+  app.post('/vehicles', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['brand', 'model', 'version'],
+        properties: {
+          brand:        { type: 'string', minLength: 1, maxLength: 100 },
+          model:        { type: 'string', minLength: 1, maxLength: 100 },
+          version:      { type: 'string', minLength: 1, maxLength: 100 },
+          yearModel:    { type: 'integer', minimum: 1990, maximum: 2030 },
+          yearModelEnd: { type: 'integer', minimum: 1990, maximum: 2030 },
+          isMidyear:    { type: 'boolean' }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (req, reply) => {
     const { brand, model, version, yearModel, yearModelEnd, isMidyear } = req.body as {
       brand: string
       model: string
@@ -235,10 +229,27 @@ export async function vehicleRoutes(app: FastifyInstance) {
     const vehicle = vehicleRepo.create({ brand, model, version, yearModel, yearModelEnd, isMidyear })
     await vehicleRepo.save(vehicle)
 
+    await logAudit('create_vehicle', req, 'success', { brand, model, version, yearModel })
     return reply.status(201).send(vehicle)
   })
 
-  app.post('/extract', async (req, reply) => {
+  app.post('/extract', {
+    schema: {
+      body: {
+        type: 'object',
+        required: ['brand', 'model', 'version', 'yearModel'],
+        properties: {
+          brand:        { type: 'string', minLength: 1, maxLength: 100 },
+          model:        { type: 'string', minLength: 1, maxLength: 100 },
+          version:      { type: 'string', minLength: 1, maxLength: 100 },
+          yearModel:    { type: 'integer', minimum: 1990, maximum: 2030 },
+          yearModelEnd: { type: 'integer', minimum: 1990, maximum: 2030 },
+          isMidyear:    { type: 'boolean' }
+        },
+        additionalProperties: false
+      }
+    }
+  }, async (req, reply) => {
     const { brand, model, version, yearModel, yearModelEnd, isMidyear } = req.body as {
       brand: string
       model: string
@@ -248,37 +259,33 @@ export async function vehicleRoutes(app: FastifyInstance) {
       isMidyear?: boolean
     }
 
-    if (!brand || !model || !version || !yearModel) {
-      return reply.status(400).send({
-        error: 'brand, model, version e yearModel são obrigatórios'
-      })
-    }
-
     const pdfPath = findPdfPath(brand, model, version)
     const source = pdfPath ? 'pdf_extracted' : 'ia_generated'
 
-    const specs = pdfPath
-      ? await extractVehicleSpecsFromPdf(pdfPath, brand, model, version, yearModel)
-      : await extractVehicleSpecs(brand, model, version, yearModel)
+    try {
+      const specs = pdfPath
+        ? await extractVehicleSpecsFromPdf(pdfPath, brand, model, version, yearModel)
+        : await extractVehicleSpecs(brand, model, version, yearModel)
 
-    const vehicle = vehicleRepo.create({
-      brand,
-      model,
-      version,
-      yearModel,
-      yearModelEnd,
-      isMidyear: isMidyear ?? false
-    })
-    await vehicleRepo.save(vehicle)
+      const vehicle = vehicleRepo.create({
+        brand, model, version, yearModel, yearModelEnd,
+        isMidyear: isMidyear ?? false
+      })
+      await vehicleRepo.save(vehicle)
 
-    const spec = specRepo.create({
-      vehicle,
-      source,
-      status: 'active',
-      ...mapSpecsToEntity(specs)
-    })
-    await specRepo.save(spec)
+      const spec = specRepo.create({
+        vehicle, source, status: 'active',
+        ...mapSpecsToEntity(specs)
+      })
+      await specRepo.save(spec)
 
-    return reply.status(201).send({ vehicle, spec, source })
+      await logAudit('extract', req, 'success', { brand, model, version, yearModel, source })
+      return reply.status(201).send({ vehicle, spec, source })
+
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+      await logAudit('extract', req, 'error', { brand, model, version, yearModel }, msg)
+      return reply.status(500).send({ error: 'Falha na extração', message: msg })
+    }
   })
 }
