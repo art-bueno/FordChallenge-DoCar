@@ -4,6 +4,7 @@ import { Segment } from './Segment'
 import { Vehicle } from './Vehicle'
 import { VehicleSpec } from './VehicleSpec'
 import { AuditLog } from './AuditLog'
+import { User } from './User'
 
 export const AppDataSource = new DataSource({
   type: 'oracle',
@@ -14,5 +15,5 @@ export const AppDataSource = new DataSource({
   sid: process.env.DB_SERVICE,
   synchronize: true,
   logging: ['error'],
-  entities: [Segment, Vehicle, VehicleSpec, AuditLog],
+  entities: [Segment, Vehicle, VehicleSpec, AuditLog, User],
 })

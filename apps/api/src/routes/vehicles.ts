@@ -4,6 +4,7 @@ import { Vehicle } from '@ford-intel/database'
 import { VehicleSpec } from '@ford-intel/database'
 import { extractVehicleSpecs, extractVehicleSpecsFromPdf } from '../services/extractor'
 import { logAudit } from '../services/audit'
+import { authenticate, requireRole, AuthenticatedRequest } from '../middlewares/rbac'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -147,7 +148,7 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
     faroisMatrixLed:                b(s['farois_matrix_led']),
     iluminacaoCacamba:              b(s['iluminacao_cacamba']),
     tracao4x4HighLow:               b(s['tracao_4x4_high_low']),
-    diferencialTraseiroBlocante:    b(s['diferencial_traseiro_blocante']),
+    diferencialTraseiroBlocante:    b(s['diferencial_traseiro_bocante']),
     santoAntonio:                   b(s['santo_antonio']),
     estribuLateralPlataforma:       b(s['estribo_lateral_plataforma']),
     protetorCacamba:                b(s['protetor_cacamba']),
@@ -178,12 +179,16 @@ export async function vehicleRoutes(app: FastifyInstance) {
   const vehicleRepo = AppDataSource.getRepository(Vehicle)
   const specRepo = AppDataSource.getRepository(VehicleSpec)
 
-  app.get('/vehicles', async (req, reply) => {
+  app.get('/vehicles', {
+    preHandler: [authenticate]
+  }, async (req: AuthenticatedRequest, reply) => {
     await logAudit('list_vehicles', req, 'success')
     return vehicleRepo.find({ relations: ['spec', 'segment'] })
   })
 
-  app.get('/vehicles/:id', async (req, reply) => {
+  app.get('/vehicles/:id', {
+    preHandler: [authenticate]
+  }, async (req: AuthenticatedRequest, reply) => {
     const { id } = req.params as { id: string }
 
     const vehicle = await vehicleRepo.findOne({
@@ -201,6 +206,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
   })
 
   app.post('/vehicles', {
+    preHandler: [authenticate, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -216,7 +222,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
         additionalProperties: false
       }
     }
-  }, async (req, reply) => {
+  }, async (req: AuthenticatedRequest, reply) => {
     const { brand, model, version, yearModel, yearModelEnd, isMidyear } = req.body as {
       brand: string
       model: string
@@ -234,6 +240,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
   })
 
   app.post('/extract', {
+    preHandler: [authenticate, requireRole('admin')],
     schema: {
       body: {
         type: 'object',
@@ -249,7 +256,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
         additionalProperties: false
       }
     }
-  }, async (req, reply) => {
+  }, async (req: AuthenticatedRequest, reply) => {
     const { brand, model, version, yearModel, yearModelEnd, isMidyear } = req.body as {
       brand: string
       model: string
