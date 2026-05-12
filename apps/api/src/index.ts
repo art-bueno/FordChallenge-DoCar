@@ -8,7 +8,7 @@ import rateLimit from '@fastify/rate-limit'
 import { AppDataSource } from '@ford-intel/database'
 import { vehicleRoutes } from './routes/vehicles'
 import { authRoutes } from './routes/auth'
-import { authenticate } from './middlewares/rbac'
+import { adminRoutes } from './routes/admin'
 import { verifyToken } from './services/auth'
 import { logAudit } from './services/audit'
 
@@ -18,11 +18,6 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,h
 
 const app = Fastify({ logger: true })
 
-/**
- * Hook global de autenticação JWT.
- * Rotas públicas: /health e /api/auth/*
- * Rotas protegidas: todas as demais
- */
 app.addHook('onRequest', async (req: any, reply) => {
   const publicRoutes = ['/health', '/api/auth/login', '/api/auth/refresh', '/api/auth/register']
   if (publicRoutes.some(r => req.url.startsWith(r))) return
@@ -52,10 +47,6 @@ app.addHook('onRequest', async (req: any, reply) => {
   }
 })
 
-/**
- * Hook de detecção de eventos suspeitos.
- * Registra respostas 401 e 403 para monitoramento de acessos indevidos.
- */
 app.addHook('onResponse', async (req: any, reply) => {
   if (reply.statusCode === 401 || reply.statusCode === 403) {
     await logAudit('suspicious_access', req, 'error',
@@ -74,7 +65,7 @@ app.register(cors, {
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Signature'],
   credentials: true
 })
 
@@ -89,9 +80,6 @@ app.register(rateLimit, {
   })
 })
 
-/**
- * Tratamento global de erros — nunca expõe stack trace ou detalhes internos.
- */
 app.setErrorHandler((error, req, reply) => {
   app.log.error(error)
 
@@ -127,6 +115,7 @@ const start = async () => {
 
     await app.register(authRoutes, { prefix: '/api' })
     await app.register(vehicleRoutes, { prefix: '/api' })
+    await app.register(adminRoutes, { prefix: '/api' })
 
     await app.listen({ port: 3333, host: '0.0.0.0' })
     console.log('API rodando em http://localhost:3333')

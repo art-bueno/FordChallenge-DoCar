@@ -5,6 +5,7 @@ import { VehicleSpec } from '@ford-intel/database'
 import { extractVehicleSpecs, extractVehicleSpecsFromPdf } from '../services/extractor'
 import { logAudit } from '../services/audit'
 import { authenticate, requireRole, AuthenticatedRequest } from '../middlewares/rbac'
+import { verifyHmac } from '../middlewares/hmac'
 import * as path from 'path'
 import * as fs from 'fs'
 
@@ -206,7 +207,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
   })
 
   app.post('/vehicles', {
-    preHandler: [authenticate, requireRole('admin')],
+    preHandler: [authenticate, requireRole('admin'), verifyHmac],
     schema: {
       body: {
         type: 'object',
@@ -240,7 +241,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
   })
 
   app.post('/extract', {
-    preHandler: [authenticate, requireRole('admin')],
+    preHandler: [authenticate, requireRole('admin'), verifyHmac],
     schema: {
       body: {
         type: 'object',
