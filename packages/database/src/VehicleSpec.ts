@@ -10,7 +10,7 @@ export class VehicleSpec {
   @JoinColumn({ name: 'vehicle_id' })
   vehicle!: Vehicle
 
-  // ── Engine & Transmission ─────────────────────────────────────────────────
+  // Engine & Transmission
   @Column({ name: 'peso_ordem_marcha_kg', type: 'number', nullable: true })
   pesoOrdemMarchaKg!: number
 
@@ -65,7 +65,7 @@ export class VehicleSpec {
   @Column({ name: 'e_autonomy_km', type: 'number', nullable: true })
   eAutonomyKm!: number
 
-  // ── Wheels ────────────────────────────────────────────────────────────────
+  // Wheels
   @Column({ name: 'rodas_liga_leve', type: 'number', width: 1, nullable: true })
   rodasLigaLeve!: boolean
 
@@ -90,7 +90,7 @@ export class VehicleSpec {
   @Column({ name: 'estepe_temporario', type: 'number', width: 1, nullable: true })
   estepeTemporario!: boolean
 
-  // ── Connectivity ──────────────────────────────────────────────────────────
+  // Connectivity
   @Column({ name: 'loja_aplicativos', type: 'number', width: 1, nullable: true })
   lojaAplicativos!: boolean
 
@@ -127,7 +127,7 @@ export class VehicleSpec {
   @Column({ name: 'atualizacao_ota', type: 'number', width: 1, nullable: true })
   atualizacaoOta!: boolean
 
-  // ── Multimídia ────────────────────────────────────────────────────────────
+  // Multimídia
   @Column({ name: 'bluetooth', type: 'number', width: 1, nullable: true })
   bluetooth!: boolean
 
@@ -179,7 +179,7 @@ export class VehicleSpec {
   @Column({ name: 'usb_qtd', type: 'number', nullable: true })
   usbQtd!: number
 
-  // ── Air Conditioning ──────────────────────────────────────────────────────
+  // Air Conditioning
   @Column({ name: 'ar_cond_saida_2a_fileira', type: 'number', width: 1, nullable: true })
   arCondSaida2aFileira!: boolean
 
@@ -189,7 +189,7 @@ export class VehicleSpec {
   @Column({ name: 'ar_cond_duas_zonas', type: 'number', width: 1, nullable: true })
   arCondDuasZonas!: boolean
 
-  // ── Safety ────────────────────────────────────────────────────────────────
+  // Safety
   @Column({ name: 'controle_anti_capotamento', type: 'number', width: 1, nullable: true })
   controleAntiCapotamento!: boolean
 
@@ -220,7 +220,7 @@ export class VehicleSpec {
   @Column({ name: 'airbags_qtd', type: 'number', nullable: true })
   airbagsQtd!: number
 
-  // ── High Tech ─────────────────────────────────────────────────────────────
+  // High Tech
   @Column({ name: 'piloto_automatico', type: 'number', width: 1, nullable: true })
   pilotoAutomatico!: boolean
 
@@ -287,7 +287,7 @@ export class VehicleSpec {
   @Column({ name: 'keyless_entry_peps', type: 'number', width: 1, nullable: true })
   keylessEntryPeps!: boolean
 
-  // ── Global Closing ────────────────────────────────────────────────────────
+  // Global Closing
   @Column({ name: 'alarme_volumetrico', type: 'number', width: 1, nullable: true })
   alarmeVolumetrico!: boolean
 
@@ -303,7 +303,7 @@ export class VehicleSpec {
   @Column({ name: 'global_closing', type: 'number', width: 1, nullable: true })
   globalClosing!: boolean
 
-  // ── Trim ──────────────────────────────────────────────────────────────────
+  // Trim
   @Column({ name: 'bancos_couro', type: 'number', width: 1, nullable: true })
   bancosCouro!: boolean
 
@@ -316,14 +316,14 @@ export class VehicleSpec {
   @Column({ name: 'painel_soft_touch', type: 'number', width: 1, nullable: true })
   painelSoftTouch!: boolean
 
-  // ── SunRoof ───────────────────────────────────────────────────────────────
+  // SunRoof
   @Column({ name: 'teto_solar_eletrico', type: 'number', width: 1, nullable: true })
   tetoSolarEletrico!: boolean
 
   @Column({ name: 'teto_solar_panoramico', type: 'number', width: 1, nullable: true })
   tetoSolarPanoramico!: boolean
 
-  // ── Seats ─────────────────────────────────────────────────────────────────
+  // Seats
   @Column({ name: 'banco_traseiro_aquecido', type: 'number', width: 1, nullable: true })
   bancoTraseiroAquecido!: boolean
 
@@ -336,7 +336,7 @@ export class VehicleSpec {
   @Column({ name: 'banco_posicoes_eletrico', type: 'number', nullable: true })
   bancoPosicoesEletrico!: number
 
-  // ── Lights ────────────────────────────────────────────────────────────────
+  // Lights
   @Column({ name: 'farois_full_led', type: 'number', width: 1, nullable: true })
   faroisFullLed!: boolean
 
@@ -361,7 +361,7 @@ export class VehicleSpec {
   @Column({ name: 'iluminacao_cacamba', type: 'number', width: 1, nullable: true })
   iluminacaoCacamba!: boolean
 
-  // ── 4x4 ──────────────────────────────────────────────────────────────────
+  // 4x4
   @Column({ name: 'tracao_4x4_high_low', type: 'number', width: 1, nullable: true })
   tracao4x4HighLow!: boolean
 
@@ -386,7 +386,7 @@ export class VehicleSpec {
   @Column({ name: 'suspensao_fox_live_valve', type: 'number', width: 1, nullable: true })
   suspensaoFoxLiveValve!: boolean
 
-  // ── Others ────────────────────────────────────────────────────────────────
+  // Others
   @Column({ name: 'anos_garantia', type: 'number', nullable: true })
   anosGarantia!: number
 
@@ -438,7 +438,14 @@ export class VehicleSpec {
   @Column({ name: 'bagageiro_teto_long', type: 'number', width: 1, nullable: true })
   bagageiroTetoLong!: boolean
 
-  // ── Metadados ─────────────────────────────────────────────────────────────
+  // Rastreabilidade das fontes
+  @Column({ name: 'source_urls', type: 'clob', nullable: true })
+  sourceUrls!: string
+
+  @Column({ name: 'search_queries', type: 'clob', nullable: true })
+  searchQueries!: string
+
+  // Metadados
   @Column({ type: 'varchar2', length: 50, default: 'ia_generated' })
   source!: string
 

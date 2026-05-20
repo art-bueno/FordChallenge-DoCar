@@ -1,24 +1,28 @@
 import Anthropic from '@anthropic-ai/sdk'
 import * as fs from 'fs'
+import axios from 'axios'
 
 const client = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY
 })
 
-const SYSTEM_PROMPT = `Você é um especialista em extração de dados de documentos técnicos automotivos.
+const OFFICIAL_URLS: Record<string, string[]> = {
+  'toyota': ['https://www.toyota.com.br/modelos/hilux-cabine-dupla'],
+  'mitsubishi': ['https://www.mitsubishimotors.com.br/veiculos/triton'],
+  'ford': ['https://www.ford.com.br/picapes/ranger/', 'https://www.ford.com.br/picapes/ranger-raptor/'],
+  'volkswagen': ['https://www.vw.com.br/pt/modelos/amarok.html'],
+  'chevrolet': ['https://www.chevrolet.com.br/caminhonetes/s10'],
+}
 
-Você receberá um documento oficial de uma montadora. Leia com atenção e extraia TODOS os dados técnicos presentes.
+const INDEPENDENT_URLS: Record<string, string[]> = {
+  'toyota': ['https://www.icarros.com.br/toyota/hilux/versoes/14571'],
+  'mitsubishi': ['https://www.icarros.com.br/mitsubishi/l200+triton/versoes/9791'],
+  'ford': ['https://www.icarros.com.br/ford/ranger/versoes/14091'],
+  'volkswagen': ['https://www.icarros.com.br/volkswagen/amarok/versoes/9203'],
+  'chevrolet': ['https://www.icarros.com.br/chevrolet/s10/versoes/9074'],
+}
 
-Regras de extração:
-- Leia o documento inteiro antes de responder
-- Extraia TODOS os valores numéricos e técnicos que encontrar
-- Para campos booleanos: use 1 se o item está presente/disponível, 0 se não está, null se não há informação
-- Para campos numéricos: extraia o valor exato mencionado no documento, null se não encontrar
-- Converta kgf.m para Nm multiplicando por 9.81
-- Retorne APENAS JSON válido, sem texto antes ou depois, sem markdown
-
-Schema obrigatório de saída (138 campos exatos):
-{
+const JSON_SCHEMA = `{
   "peso_ordem_marcha_kg": number | null,
   "cilindrada_l": number | null,
   "potencia_cv": number | null,
@@ -156,13 +160,142 @@ Schema obrigatório de saída (138 campos exatos):
   "tapete_borracha": 0 | 1 | null,
   "iluminacao_ambiente": 0 | 1 | null,
   "tomada_12v": 0 | 1 | null,
-  "bagageiro_teto_long": 0 | 1 | null
+  "bagageiro_teto_long": 0 | 1 | null,
+  "source_urls": string[],
+  "search_queries": string[]
 }`
 
 /**
- * Extrai especificações técnicas de um veículo a partir de um PDF oficial.
- * O PDF é lido diretamente pelo Claude, garantindo precisão máxima.
+ * Busca o conteúdo de uma URL e retorna texto limpo.
  */
+async function fetchPage(url: string): Promise<string> {
+  try {
+    const res = await axios.get(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FordPickupIntel/1.0)' },
+      timeout: 15000,
+      maxRedirects: 5
+    })
+    const html = String(res.data)
+    return html
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .substring(0, 6000)
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * Coleta conteúdo de múltiplas fontes em paralelo.
+ */
+async function collectSources(
+  brand: string,
+  pdfContent?: string
+): Promise<{ contents: string[]; urls: string[] }> {
+  const brandKey = brand.toLowerCase()
+  const officialUrls = OFFICIAL_URLS[brandKey] || []
+  const independentUrls = INDEPENDENT_URLS[brandKey] || []
+  const allUrls = [...officialUrls, ...independentUrls]
+
+  const results = await Promise.allSettled(
+    allUrls.map(url => fetchPage(url))
+  )
+
+  const contents: string[] = []
+  const successUrls: string[] = []
+
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled' && result.value.length > 100) {
+      contents.push(`=== Fonte: ${allUrls[i]} ===\n${result.value}`)
+      successUrls.push(allUrls[i])
+    }
+  })
+
+  if (pdfContent) {
+    contents.push(`=== Fonte: Ficha técnica oficial (PDF) ===\n${pdfContent}`)
+    successUrls.push('pdf_oficial')
+  }
+
+  return { contents, urls: successUrls }
+}
+
+/**
+ * Extrai specs a partir do conteúdo coletado.
+ * Uma única chamada à API — sem loop, sem tool use.
+ */
+async function extractFromContent(
+  brand: string,
+  model: string,
+  version: string,
+  yearModel: number,
+  contents: string[],
+  urls: string[]
+): Promise<Record<string, unknown>> {
+  const sourcesText = contents.join('\n\n').substring(0, 60000)
+
+  const message = await client.messages.create({
+    model: 'claude-sonnet-4-5',
+    max_tokens: 4096,
+    system: `Você é um extrator de especificações técnicas automotivas. 
+Analise o conteúdo fornecido e extraia os dados do veículo solicitado.
+Retorne APENAS JSON válido, sem texto antes ou depois, sem markdown.
+Para campos booleanos: 1 se presente, 0 se ausente, null se não encontrado.
+Torque em Nm (kgf.m × 9.81). Potência em cv.`,
+    messages: [
+      {
+        role: 'user',
+        content: `Extraia as especificações técnicas de:
+Marca: ${brand}
+Modelo: ${model}
+Versão: ${version}
+Ano: ${yearModel}
+
+Fontes consultadas:
+${sourcesText}
+
+URLs consultadas: ${JSON.stringify(urls)}
+
+Retorne APENAS este JSON preenchido:
+${JSON_SCHEMA}`
+      }
+    ]
+  })
+
+  const text = message.content[0].type === 'text' ? message.content[0].text : ''
+  const clean = text
+    .replace(/^```json\s*/m, '')
+    .replace(/^```\s*/m, '')
+    .replace(/```\s*$/m, '')
+    .trim()
+
+  const result = JSON.parse(clean)
+  result.source_urls = urls
+  result.search_queries = urls.map(u => `fetch: ${u}`)
+  return result
+}
+
+/**
+ * Ponto de entrada principal — coleta fontes e extrai specs.
+ */
+async function runAgent(
+  brand: string,
+  model: string,
+  version: string,
+  yearModel: number,
+  pdfContent?: string
+): Promise<Record<string, unknown>> {
+  const { contents, urls } = await collectSources(brand, pdfContent)
+
+  if (contents.length === 0) {
+    throw new Error('Não foi possível acessar nenhuma fonte de dados')
+  }
+
+  return extractFromContent(brand, model, version, yearModel, contents, urls)
+}
+
 export async function extractVehicleSpecsFromPdf(
   pdfPath: string,
   brand: string,
@@ -173,90 +306,36 @@ export async function extractVehicleSpecsFromPdf(
   const pdfBuffer = fs.readFileSync(pdfPath)
   const pdfBase64 = pdfBuffer.toString('base64')
 
-  const message = await client.messages.create({
+  const pdfMessage = await client.messages.create({
     model: 'claude-sonnet-4-5',
-    max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'document',
-            source: {
-              type: 'base64',
-              media_type: 'application/pdf',
-              data: pdfBase64
-            }
-          },
-          {
-            type: 'text',
-            text: `Extraia as especificações técnicas de:
-Marca: ${brand}
-Modelo: ${model}
-Versão: ${version}
-Ano: ${yearModel}
-
-Leia o documento acima e preencha TODOS os 138 campos do schema.
-Para cada item presente no documento use 1, ausente use 0, sem informação use null.`
-          }
-        ]
-      }
-    ]
+    max_tokens: 2048,
+    messages: [{
+      role: 'user',
+      content: [
+        {
+          type: 'document',
+          source: { type: 'base64', media_type: 'application/pdf', data: pdfBase64 }
+        },
+        {
+          type: 'text',
+          text: 'Extraia e retorne todo o texto técnico deste documento.'
+        }
+      ]
+    }]
   })
 
-  const text = message.content[0].type === 'text'
-    ? message.content[0].text
+  const pdfText = pdfMessage.content[0].type === 'text'
+    ? pdfMessage.content[0].text
     : ''
 
-  const clean = text
-    .replace(/^```json\s*/m, '')
-    .replace(/^```\s*/m, '')
-    .replace(/```\s*$/m, '')
-    .trim()
-
-  return JSON.parse(clean) as Record<string, unknown>
+  return runAgent(brand, model, version, yearModel, pdfText)
 }
 
-/**
- * Extrai especificações técnicas usando apenas o conhecimento do modelo.
- * Usado como fallback quando não há PDF disponível.
- */
 export async function extractVehicleSpecs(
   brand: string,
   model: string,
   version: string,
   yearModel: number
 ): Promise<Record<string, unknown>> {
-  const message = await client.messages.create({
-    model: 'claude-sonnet-4-5',
-    max_tokens: 4096,
-    system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: 'user',
-        content: `Extraia as especificações técnicas de:
-Marca: ${brand}
-Modelo: ${model}
-Versão: ${version}
-Ano: ${yearModel}
-
-Use seu conhecimento sobre este veículo no mercado brasileiro.
-Preencha TODOS os 138 campos do schema.
-Para cada item presente no veículo use 1, ausente use 0, sem certeza use null.`
-      }
-    ]
-  })
-
-  const text = message.content[0].type === 'text'
-    ? message.content[0].text
-    : ''
-
-  const clean = text
-    .replace(/^```json\s*/m, '')
-    .replace(/^```\s*/m, '')
-    .replace(/```\s*$/m, '')
-    .trim()
-
-  return JSON.parse(clean) as Record<string, unknown>
+  return runAgent(brand, model, version, yearModel)
 }
