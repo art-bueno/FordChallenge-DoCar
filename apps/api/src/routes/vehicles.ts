@@ -29,8 +29,8 @@ function findPdfPath(brand: string, model: string, version: string): string | nu
 }
 
 function mapSpecsToEntity(s: Record<string, unknown>) {
-  const b = (v: unknown) => (v === null || v === undefined) ? null : Number(v)
-  const n = (v: unknown) => (v === null || v === undefined) ? null : Number(v)
+  const b = (v: unknown): number | undefined => (v === null || v === undefined) ? undefined : Number(v)
+  const n = (v: unknown): number | undefined => (v === null || v === undefined) ? undefined : Number(v)
 
   return {
     pesoOrdemMarchaKg:              n(s['peso_ordem_marcha_kg']),
@@ -299,7 +299,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
       })
       if (!existing) await vehicleRepo.save(vehicle)
 
-      const spec = specRepo.create({ vehicle, source, status: 'active', ...mapSpecsToEntity(specs) })
+      const spec = specRepo.create({ vehicle, source, status: 'active', ...mapSpecsToEntity(specs) } as any)
       await specRepo.save(spec)
 
       await logAudit('extract', req, 'success', { brand, model, version, yearModel, source })

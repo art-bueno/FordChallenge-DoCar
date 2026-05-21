@@ -85,7 +85,7 @@ app.addHook('onResponse', async (req: any, reply) => {
   }
 })
 
-app.setErrorHandler((error, req, reply) => {
+app.setErrorHandler((error: any, req, reply) => {
   app.log.error(error)
 
   if (error.validation) {
