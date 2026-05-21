@@ -1,3 +1,6 @@
+*Desenvolvido por Arthur Bueno — RM558396 / João Carotta - RM555187 / Victor Magdaleno Marcos - RM556729*
+
+
 # Ford Pickup Intel — Entrega Mobile
 ### Disciplina: Mobile Development & IoT | FIAP
 
@@ -76,4 +79,3 @@ https://github.com/art-bueno/FordChallenge-DoCar
 
 ---
 
-*Desenvolvido por Arthur Bueno — FIAP 2025*
