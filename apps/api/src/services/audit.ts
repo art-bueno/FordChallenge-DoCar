@@ -19,11 +19,11 @@ export async function logAudit(
     const log = repo.create({
       action,
       ip: req.ip,
-      userAgent: req.headers['user-agent']?.substring(0, 255) ?? null,
-      payload: encryptedPayload,
+      userAgent: req.headers['user-agent']?.substring(0, 255) ?? undefined,
+      payload: encryptedPayload ?? undefined,
       status,
-      errorMessage: errorMessage?.substring(0, 500) ?? null,
-    })
+      errorMessage: errorMessage?.substring(0, 500) ?? undefined,
+    } as any)
 
     await repo.save(log)
   } catch {

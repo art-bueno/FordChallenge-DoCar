@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import jwt, { SignOptions } from 'jsonwebtoken'
 import { AppDataSource, User, AuditLog } from '@ford-intel/database'
 import { FastifyRequest } from 'fastify'
 
@@ -16,9 +16,6 @@ export interface TokenPayload {
   type: 'access' | 'refresh'
 }
 
-/**
- * Gera par de tokens de acesso e refresh para um usuário autenticado.
- */
 export function generateTokens(user: User) {
   const payload: Omit<TokenPayload, 'type'> = {
     sub: user.id,
@@ -29,30 +26,22 @@ export function generateTokens(user: User) {
   const accessToken = jwt.sign(
     { ...payload, type: 'access' },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    { expiresIn: JWT_EXPIRES_IN } as SignOptions
   )
 
   const refreshToken = jwt.sign(
     { ...payload, type: 'refresh' },
     JWT_SECRET,
-    { expiresIn: JWT_REFRESH_EXPIRES_IN }
+    { expiresIn: JWT_REFRESH_EXPIRES_IN } as SignOptions
   )
 
   return { accessToken, refreshToken }
 }
 
-/**
- * Verifica e decodifica um JWT.
- * Lança erro se inválido ou expirado.
- */
 export function verifyToken(token: string): TokenPayload {
   return jwt.verify(token, JWT_SECRET) as TokenPayload
 }
 
-/**
- * Autentica um usuário com email e senha.
- * Implementa bloqueio após tentativas falhas consecutivas.
- */
 export async function authenticateUser(
   email: string,
   password: string,
@@ -71,7 +60,7 @@ export async function authenticateUser(
       payload: JSON.stringify({ email }),
       status: 'error',
       errorMessage: 'Usuário não encontrado ou inativo'
-    }))
+    } as any))
     throw new Error('Credenciais inválidas')
   }
 
@@ -85,14 +74,11 @@ export async function authenticateUser(
 
   if (!passwordValid) {
     user.failedAttempts += 1
-
     if (user.failedAttempts >= MAX_FAILED_ATTEMPTS) {
       user.lockedUntil = new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000)
       user.failedAttempts = 0
     }
-
     await userRepo.save(user)
-
     await auditRepo.save(auditRepo.create({
       action: 'login_failed',
       ip: req.ip,
@@ -100,8 +86,7 @@ export async function authenticateUser(
       payload: JSON.stringify({ email }),
       status: 'error',
       errorMessage: `Senha inválida. Tentativa ${user.failedAttempts}/${MAX_FAILED_ATTEMPTS}`
-    }))
-
+    } as any))
     throw new Error('Credenciais inválidas')
   }
 
@@ -118,27 +103,20 @@ export async function authenticateUser(
     userAgent: req.headers['user-agent']?.substring(0, 255),
     payload: JSON.stringify({ email, role: user.role }),
     status: 'success'
-  }))
+  } as any))
 
   return { ...tokens, role: user.role }
 }
 
-/**
- * Cria um usuário com senha hasheada.
- * Uso restrito a administradores.
- */
 export async function createUser(
   email: string,
   password: string,
   role: 'admin' | 'analyst' = 'analyst'
 ): Promise<User> {
   const userRepo = AppDataSource.getRepository(User)
-
   const existing = await userRepo.findOne({ where: { email } })
   if (existing) throw new Error('Email já cadastrado')
-
   const passwordHash = await bcrypt.hash(password, 12)
-
   const user = userRepo.create({ email, passwordHash, role })
   return userRepo.save(user)
 }
