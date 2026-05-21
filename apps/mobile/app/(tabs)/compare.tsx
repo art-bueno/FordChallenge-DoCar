@@ -16,36 +16,39 @@ interface Vehicle {
 }
 
 const COMPARE_FIELDS = [
-  { key: 'potenciaCv', label: 'Potência (cv)', unit: 'cv' },
-  { key: 'torqueNm', label: 'Torque (Nm)', unit: 'Nm' },
-  { key: 'qtdMarchas', label: 'Marchas', unit: '' },
-  { key: 'airbagsQtd', label: 'Airbags', unit: '' },
-  { key: 'multimidiaPolegadas', label: 'Multimídia', unit: '"' },
-  { key: 'rodasPolegadas', label: 'Rodas', unit: '"' },
-  { key: 'anosGarantia', label: 'Garantia', unit: 'anos' },
+  { key: 'potenciaCv',   label: 'Potência (cv)', unit: 'cv'   },
+  { key: 'torqueNm',     label: 'Torque (Nm)',   unit: 'Nm'   },
+  { key: 'qtdMarchas',   label: 'Marchas',       unit: ''     },
+  { key: 'airbagsQtd',   label: 'Airbags',       unit: ''     },
+  { key: 'anosGarantia', label: 'Garantia',      unit: 'anos' },
 ]
 
 const BOOL_FIELDS = [
-  { key: 'motorDiesel', label: 'Motor Diesel' },
-  { key: 'tecnologiaBiturbo', label: 'Biturbo' },
-  { key: 'tracao4x4HighLow', label: 'Tração 4x4' },
-  { key: 'pilotoAutomaticoAdaptativo', label: 'ACC Adaptativo' },
-  { key: 'camera360', label: 'Câmera 360°' },
-  { key: 'carregamentoWireless', label: 'Carregamento Sem Fio' },
-  { key: 'suspensaoFoxLiveValve', label: 'Suspensão FOX' },
-  { key: 'faroisMatrixLed', label: 'Faróis Matrix LED' },
+  { key: 'motorDiesel',               label: 'Motor Diesel'         },
+  { key: 'tecnologiaBiturbo',         label: 'Biturbo'              },
+  { key: 'tracao4x4HighLow',          label: 'Tração 4x4'           },
+  { key: 'transmissaoAutomatica',     label: 'Câmbio Automático'    },
+  { key: 'pilotoAutomaticoAdaptativo',label: 'ACC Adaptativo'       },
+  { key: 'camera360',                 label: 'Câmera 360°'          },
+  { key: 'carregamentoWireless',      label: 'Carregamento Sem Fio' },
+  { key: 'suspensaoFoxLiveValve',     label: 'Suspensão FOX'        },
+  { key: 'faroisMatrixLed',           label: 'Faróis Matrix LED'    },
 ]
+
+function vehicleLabel(v: Vehicle) {
+  return `${v.brand} ${v.model} ${v.version} - ${v.yearModel}`
+}
 
 export default function CompareScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading,  setLoading]  = useState(true)
   const [vehicleA, setVehicleA] = useState<Vehicle | null>(null)
   const [vehicleB, setVehicleB] = useState<Vehicle | null>(null)
-  const [picking, setPicking] = useState<'A' | 'B' | null>(null)
+  const [picking,  setPicking]  = useState<'A' | 'B' | null>(null)
 
   useEffect(() => {
     api.get('/vehicles')
-      .then(res => setVehicles(res.data))
+      .then(res => setVehicles(res.data.filter((v: Vehicle) => v.spec !== null)))
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [])
@@ -59,26 +62,34 @@ export default function CompareScreen() {
   function getBetter(key: string): 'A' | 'B' | null {
     const a = vehicleA?.spec?.[key]
     const b = vehicleB?.spec?.[key]
-    if (!a || !b) return null
+    if (a == null || b == null) return null
     return a > b ? 'A' : b > a ? 'B' : null
   }
 
   if (picking) {
     return (
       <View style={styles.container}>
-        <View style={styles.content}>
+        <View style={[styles.content, { flex: 1 }]}>
           <TouchableOpacity onPress={() => setPicking(null)} style={styles.backBtn}>
             <Text style={styles.backText}>← Cancelar</Text>
           </TouchableOpacity>
-          <Text style={styles.pageTitle}>Escolha o veículo {picking}</Text>
-          <ScrollView>
+          <Text style={styles.pageTitle}>Escolha o Veículo {picking}</Text>
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             {vehicles.map(v => (
               <TouchableOpacity
                 key={v.id}
-                style={styles.pickCard}
+                style={[
+                  styles.pickCard,
+                  (picking === 'A' ? vehicleA : vehicleB)?.id === v.id && styles.pickCardSelected
+                ]}
                 onPress={() => selectVehicle(v)}>
-                <Text style={styles.pickName}>{v.brand} {v.model} {v.version}</Text>
-                <Text style={styles.pickSub}>{v.yearModel}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pickName}>{v.brand} {v.model} {v.version}</Text>
+                  <Text style={styles.pickSub}>{v.yearModel}</Text>
+                </View>
+                {v.spec?.potenciaCv && (
+                  <Text style={styles.pickBadge}>{v.spec.potenciaCv} cv</Text>
+                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -96,8 +107,8 @@ export default function CompareScreen() {
           style={[styles.selectorBtn, { borderColor: '#3b82f6' }]}
           onPress={() => setPicking('A')}>
           <Text style={styles.selectorLabel}>Veículo A</Text>
-          <Text style={styles.selectorValue} numberOfLines={1}>
-            {vehicleA ? `${vehicleA.brand} ${vehicleA.model}` : 'Selecionar'}
+          <Text style={styles.selectorValue} numberOfLines={2}>
+            {vehicleA ? vehicleLabel(vehicleA) : 'Selecionar'}
           </Text>
           <ChevronDown color="#6b7280" size={14} />
         </TouchableOpacity>
@@ -110,8 +121,8 @@ export default function CompareScreen() {
           style={[styles.selectorBtn, { borderColor: '#8b5cf6' }]}
           onPress={() => setPicking('B')}>
           <Text style={styles.selectorLabel}>Veículo B</Text>
-          <Text style={styles.selectorValue} numberOfLines={1}>
-            {vehicleB ? `${vehicleB.brand} ${vehicleB.model}` : 'Selecionar'}
+          <Text style={styles.selectorValue} numberOfLines={2}>
+            {vehicleB ? vehicleLabel(vehicleB) : 'Selecionar'}
           </Text>
           <ChevronDown color="#6b7280" size={14} />
         </TouchableOpacity>
@@ -121,7 +132,7 @@ export default function CompareScreen() {
 
       {vehicleA && vehicleB && (
         <>
-          <Text style={styles.sectionTitle}>Especificações numéricas</Text>
+          <Text style={styles.sectionTitle}>Especificações Numéricas</Text>
           <View style={styles.table}>
             {COMPARE_FIELDS.map(field => {
               const aVal = vehicleA.spec?.[field.key]
@@ -129,13 +140,13 @@ export default function CompareScreen() {
               const better = getBetter(field.key)
               return (
                 <View key={field.key} style={styles.tableRow}>
-                  <Text style={[styles.tableCell, styles.tableCellA,
-                    better === 'A' && styles.winner]}>
+                  <Text style={[styles.cellText, styles.cellLeft,
+                    better === 'A' ? styles.winnerText : styles.normalText]}>
                     {aVal != null ? `${aVal}${field.unit}` : '—'}
                   </Text>
                   <Text style={styles.tableLabel}>{field.label}</Text>
-                  <Text style={[styles.tableCell, styles.tableCellB,
-                    better === 'B' && styles.winner]}>
+                  <Text style={[styles.cellText, styles.cellRight,
+                    better === 'B' ? styles.winnerText : styles.normalText]}>
                     {bVal != null ? `${bVal}${field.unit}` : '—'}
                   </Text>
                 </View>
@@ -150,14 +161,14 @@ export default function CompareScreen() {
               const bVal = vehicleB.spec?.[field.key]
               return (
                 <View key={field.key} style={styles.tableRow}>
-                  <View style={[styles.tableCell, styles.tableCellA]}>
+                  <View style={[styles.cellText, styles.cellLeft, { alignItems: 'center' }]}>
                     {aVal === 1
                       ? <Check color="#10b981" size={18} />
                       : <Text style={styles.cross}>✗</Text>
                     }
                   </View>
                   <Text style={styles.tableLabel}>{field.label}</Text>
-                  <View style={[styles.tableCell, styles.tableCellB]}>
+                  <View style={[styles.cellText, styles.cellRight, { alignItems: 'center' }]}>
                     {bVal === 1
                       ? <Check color="#10b981" size={18} />
                       : <Text style={styles.cross}>✗</Text>
@@ -184,18 +195,18 @@ export default function CompareScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0f1e' },
-  content: { padding: 20, paddingTop: 60 },
-  pageTitle: { fontSize: 22, fontWeight: 'bold', color: '#f5f5f5', marginBottom: 20 },
-  selectors: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 28 },
+  container:       { flex: 1, backgroundColor: '#0a0f1e' },
+  content:         { padding: 20, paddingTop: 60, paddingBottom: 40 },
+  pageTitle:       { fontSize: 22, fontWeight: 'bold', color: '#f5f5f5', marginBottom: 20 },
+  selectors:       { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginBottom: 28 },
   selectorBtn: {
     flex: 1, backgroundColor: '#111827', borderRadius: 12,
-    padding: 12, borderWidth: 1.5
+    padding: 12, borderWidth: 1.5, minHeight: 80
   },
-  selectorLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600', marginBottom: 4 },
-  selectorValue: { fontSize: 13, color: '#f5f5f5', fontWeight: '600', marginBottom: 4 },
-  vsContainer: { alignItems: 'center' },
-  vs: { fontSize: 14, fontWeight: 'bold', color: '#4b5563' },
+  selectorLabel:   { fontSize: 11, color: '#6b7280', fontWeight: '600', marginBottom: 4 },
+  selectorValue:   { fontSize: 12, color: '#f5f5f5', fontWeight: '600', marginBottom: 6, lineHeight: 18 },
+  vsContainer:     { alignItems: 'center', justifyContent: 'center', paddingTop: 28 },
+  vs:              { fontSize: 14, fontWeight: 'bold', color: '#4b5563' },
   sectionTitle: {
     fontSize: 12, fontWeight: '700', color: '#6b7280',
     textTransform: 'uppercase', letterSpacing: 1,
@@ -209,25 +220,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     borderBottomWidth: 1, borderBottomColor: '#1f2937', paddingVertical: 12
   },
-  tableCell: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tableCellA: { alignItems: 'center' },
-  tableCellB: { alignItems: 'center' },
+  cellText:        { flex: 1 },
+  cellLeft:        { alignItems: 'flex-end', paddingRight: 10 },
+  cellRight:       { alignItems: 'flex-start', paddingLeft: 10 },
+  normalText:      { color: '#f5f5f5', fontSize: 14, fontWeight: '500' },
+  winnerText:      { color: '#10b981', fontSize: 14, fontWeight: '700' },
   tableLabel: {
-    flex: 1.5, textAlign: 'center', fontSize: 12,
+    width: 130, textAlign: 'center', fontSize: 11,
     color: '#6b7280', fontWeight: '500'
   },
-  winner: {},
-  cross: { fontSize: 16, color: '#ef4444' },
-  backBtn: { marginBottom: 20 },
-  backText: { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
+  cross:           { fontSize: 16, color: '#ef4444' },
+  backBtn:         { marginBottom: 20 },
+  backText:        { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
   pickCard: {
+    flexDirection: 'row', alignItems: 'center',
     backgroundColor: '#111827', borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: '#1f2937', marginBottom: 10
   },
-  pickName: { fontSize: 14, fontWeight: '600', color: '#f5f5f5' },
-  pickSub: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  emptyState: { alignItems: 'center', marginTop: 60 },
-  emptyIcon: { fontSize: 48, marginBottom: 16 },
-  emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#f5f5f5', marginBottom: 8 },
-  emptySub: { fontSize: 14, color: '#6b7280', textAlign: 'center', lineHeight: 20 }
+  pickCardSelected: { borderColor: '#3b82f6', backgroundColor: '#0f1e3a' },
+  pickName:        { fontSize: 14, fontWeight: '600', color: '#f5f5f5' },
+  pickSub:         { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  pickBadge: {
+    fontSize: 12, fontWeight: '700', color: '#3b82f6',
+    backgroundColor: '#1e3a5f', paddingHorizontal: 8,
+    paddingVertical: 3, borderRadius: 6, marginLeft: 8
+  },
+  emptyState:      { alignItems: 'center', marginTop: 60 },
+  emptyIcon:       { fontSize: 48, marginBottom: 16 },
+  emptyTitle:      { fontSize: 18, fontWeight: 'bold', color: '#f5f5f5', marginBottom: 8 },
+  emptySub:        { fontSize: 14, color: '#6b7280', textAlign: 'center', lineHeight: 20 }
 })

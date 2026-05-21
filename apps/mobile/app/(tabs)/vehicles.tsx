@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, ActivityIndicator, TextInput
+  TouchableOpacity, ActivityIndicator, TextInput, Alert
 } from 'react-native'
-import { Search, ChevronRight } from 'lucide-react-native'
+import { Search, ChevronRight, Trash2 } from 'lucide-react-native'
 import api from '@/services/api'
 
 interface Vehicle {
@@ -18,49 +18,96 @@ interface Vehicle {
     motorDiesel: number | null
     qtdMarchas: number | null
     tracao4x4HighLow: number | null
+    anosGarantia: number | null
+    airbagsQtd: number | null
   } | null
 }
 
 const BRAND_COLORS: Record<string, string> = {
-  Ford: '#1F3A6E',
-  Toyota: '#CC0000',
-  Mitsubishi: '#E60012',
-  Volkswagen: '#001E50',
-  Chevrolet: '#CC0000',
+  Ford: '#1F3A6E', ford: '#1F3A6E', FORD: '#1F3A6E',
+  Toyota: '#CC0000', toyota: '#CC0000',
+  Mitsubishi: '#E60012', mitsubishi: '#E60012',
+  Volkswagen: '#001E50', volkswagen: '#001E50',
+  Chevrolet: '#CC0000', chevrolet: '#CC0000',
+}
+
+function getBrandColor(brand: string): string {
+  return BRAND_COLORS[brand] || BRAND_COLORS[brand.toLowerCase()] || '#1F3A6E'
 }
 
 export default function VehiclesScreen() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [filtered, setFiltered] = useState<Vehicle[]>([])
-  const [search, setSearch] = useState('')
-  const [loading, setLoading] = useState(true)
+  const [search, setSearch]     = useState('')
+  const [loading, setLoading]   = useState(true)
   const [selected, setSelected] = useState<Vehicle | null>(null)
 
-  useEffect(() => {
+  function loadVehicles() {
+    setLoading(true)
     api.get('/vehicles')
       .then(res => {
-        setVehicles(res.data)
-        setFiltered(res.data)
+        const unique = deduplicar(res.data)
+        setVehicles(unique)
+        setFiltered(unique)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [])
+  }
+
+  function deduplicar(list: Vehicle[]): Vehicle[] {
+    const seen = new Set<string>()
+    return list.filter(v => {
+      const key = `${v.brand.toLowerCase()}-${v.model.toLowerCase()}-${v.version.toLowerCase()}-${v.yearModel}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
+  useEffect(() => { loadVehicles() }, [])
 
   useEffect(() => {
     const q = search.toLowerCase()
     setFiltered(vehicles.filter(v =>
-      `${v.brand} ${v.model} ${v.version}`.toLowerCase().includes(q)
+      `${v.brand} ${v.model} ${v.version} ${v.yearModel}`.toLowerCase().includes(q)
     ))
   }, [search, vehicles])
+
+  function confirmDelete(v: Vehicle) {
+    Alert.alert(
+      'Remover veículo',
+      `Deseja remover ${v.brand} ${v.model} ${v.version} ${v.yearModel}?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Remover', style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.delete(`/vehicles/${v.id}`)
+              if (selected?.id === v.id) setSelected(null)
+              loadVehicles()
+            } catch {
+              Alert.alert('Erro', 'Não foi possível remover o veículo.')
+            }
+          }
+        }
+      ]
+    )
+  }
 
   if (selected) {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <TouchableOpacity onPress={() => setSelected(null)} style={styles.backBtn}>
-          <Text style={styles.backText}>← Voltar</Text>
-        </TouchableOpacity>
+        <View style={styles.detailTopBar}>
+          <TouchableOpacity onPress={() => setSelected(null)} style={styles.backBtn}>
+            <Text style={styles.backText}>← Voltar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => confirmDelete(selected)} style={styles.deleteBtn}>
+            <Trash2 color="#ef4444" size={18} />
+          </TouchableOpacity>
+        </View>
 
-        <View style={[styles.detailHeader, { backgroundColor: BRAND_COLORS[selected.brand] || '#1F3A6E' }]}>
+        <View style={[styles.detailHeader, { backgroundColor: getBrandColor(selected.brand) }]}>
           <Text style={styles.detailBrand}>{selected.brand}</Text>
           <Text style={styles.detailModel}>{selected.model} {selected.version}</Text>
           <Text style={styles.detailYear}>{selected.yearModel}</Text>
@@ -69,10 +116,12 @@ export default function VehiclesScreen() {
         {selected.spec ? (
           <View style={styles.specsContainer}>
             {[
-              { label: 'Potência', value: selected.spec.potenciaCv ? `${selected.spec.potenciaCv} cv` : null },
-              { label: 'Torque', value: selected.spec.torqueNm ? `${selected.spec.torqueNm} Nm` : null },
-              { label: 'Câmbio', value: selected.spec.qtdMarchas ? `${selected.spec.qtdMarchas} marchas` : null },
-              { label: 'Motor', value: selected.spec.motorDiesel === 1 ? 'Diesel' : 'Gasolina' },
+              { label: 'Potência',   value: selected.spec.potenciaCv  ? `${selected.spec.potenciaCv} cv`  : null },
+              { label: 'Torque',     value: selected.spec.torqueNm    ? `${selected.spec.torqueNm} Nm`    : null },
+              { label: 'Câmbio',     value: selected.spec.qtdMarchas  ? `${selected.spec.qtdMarchas} marchas` : null },
+              { label: 'Airbags',    value: selected.spec.airbagsQtd  ? `${selected.spec.airbagsQtd}`     : null },
+              { label: 'Garantia',   value: selected.spec.anosGarantia ? `${selected.spec.anosGarantia} anos` : null },
+              { label: 'Motor',      value: selected.spec.motorDiesel === 1 ? 'Diesel' : 'Gasolina' },
               { label: 'Tração 4x4', value: selected.spec.tracao4x4HighLow === 1 ? 'Sim' : 'Não' },
             ].filter(s => s.value).map((s, i) => (
               <View key={i} style={styles.specRow}>
@@ -112,9 +161,11 @@ export default function VehiclesScreen() {
               <TouchableOpacity
                 key={v.id}
                 style={styles.vehicleCard}
-                onPress={() => setSelected(v)}>
-                <View style={[styles.brandDot, { backgroundColor: BRAND_COLORS[v.brand] || '#1F3A6E' }]}>
-                  <Text style={styles.brandInitial}>{v.brand[0]}</Text>
+                onPress={() => setSelected(v)}
+                onLongPress={() => confirmDelete(v)}
+                delayLongPress={500}>
+                <View style={[styles.brandDot, { backgroundColor: getBrandColor(v.brand) }]}>
+                  <Text style={styles.brandInitial}>{v.brand[0].toUpperCase()}</Text>
                 </View>
                 <View style={styles.vehicleInfo}>
                   <Text style={styles.vehicleName}>{v.brand} {v.model}</Text>
@@ -126,6 +177,9 @@ export default function VehiclesScreen() {
                 <ChevronRight color="#4b5563" size={16} />
               </TouchableOpacity>
             ))}
+            {filtered.length === 0 && (
+              <Text style={styles.empty}>Nenhum veículo encontrado.</Text>
+            )}
           </ScrollView>
         )}
       </View>
@@ -134,15 +188,15 @@ export default function VehiclesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0a0f1e' },
-  content: { flex: 1, padding: 20, paddingTop: 60 },
-  pageTitle: { fontSize: 22, fontWeight: 'bold', color: '#f5f5f5', marginBottom: 16 },
+  container:      { flex: 1, backgroundColor: '#0a0f1e' },
+  content:        { flex: 1, padding: 20, paddingTop: 60 },
+  pageTitle:      { fontSize: 22, fontWeight: 'bold', color: '#f5f5f5', marginBottom: 16 },
   searchBox: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
     backgroundColor: '#111827', borderRadius: 12, paddingHorizontal: 14,
     paddingVertical: 10, borderWidth: 1, borderColor: '#1f2937', marginBottom: 16
   },
-  searchInput: { flex: 1, color: '#f5f5f5', fontSize: 14 },
+  searchInput:    { flex: 1, color: '#f5f5f5', fontSize: 14 },
   vehicleCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: '#111827', borderRadius: 14, padding: 14,
@@ -152,23 +206,29 @@ const styles = StyleSheet.create({
     width: 40, height: 40, borderRadius: 12,
     alignItems: 'center', justifyContent: 'center'
   },
-  brandInitial: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  vehicleInfo: { flex: 1 },
-  vehicleName: { fontSize: 14, fontWeight: '600', color: '#f5f5f5' },
-  vehicleSub: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  brandInitial:   { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  vehicleInfo:    { flex: 1 },
+  vehicleName:    { fontSize: 14, fontWeight: '600', color: '#f5f5f5' },
+  vehicleSub:     { fontSize: 12, color: '#6b7280', marginTop: 2 },
   powerBadge: {
     fontSize: 12, fontWeight: '700', color: '#3b82f6',
     backgroundColor: '#1e3a5f', paddingHorizontal: 8,
     paddingVertical: 3, borderRadius: 6
   },
-  backBtn: { marginBottom: 20, marginTop: 60 },
-  backText: { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
-  detailHeader: {
-    borderRadius: 16, padding: 24, marginBottom: 20
+  detailTopBar: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    alignItems: 'center', marginBottom: 20, marginTop: 60
   },
-  detailBrand: { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
-  detailModel: { fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 },
-  detailYear: { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
+  backBtn:        {},
+  backText:       { color: '#3b82f6', fontSize: 16, fontWeight: '600' },
+  deleteBtn: {
+    width: 36, height: 36, borderRadius: 10,
+    backgroundColor: '#1f1010', alignItems: 'center', justifyContent: 'center'
+  },
+  detailHeader:   { borderRadius: 16, padding: 24, marginBottom: 20 },
+  detailBrand:    { fontSize: 13, color: 'rgba(255,255,255,0.7)', fontWeight: '600' },
+  detailModel:    { fontSize: 24, fontWeight: 'bold', color: '#fff', marginTop: 4 },
+  detailYear:     { fontSize: 14, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
   specsContainer: {
     backgroundColor: '#111827', borderRadius: 16,
     borderWidth: 1, borderColor: '#1f2937', overflow: 'hidden'
@@ -178,7 +238,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14,
     borderBottomWidth: 1, borderBottomColor: '#1f2937'
   },
-  specLabel: { fontSize: 14, color: '#6b7280' },
-  specValue: { fontSize: 14, fontWeight: '600', color: '#f5f5f5' },
-  empty: { color: '#6b7280', textAlign: 'center', marginTop: 20 }
+  specLabel:      { fontSize: 14, color: '#6b7280' },
+  specValue:      { fontSize: 14, fontWeight: '600', color: '#f5f5f5' },
+  empty:          { color: '#6b7280', textAlign: 'center', marginTop: 20 }
 })

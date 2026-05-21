@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router'
-import { LayoutDashboard, Car, GitCompare } from 'lucide-react-native'
+import { LayoutDashboard, Car, GitCompare, Sparkles } from 'lucide-react-native'
 
 export default function TabsLayout() {
   return (
@@ -26,6 +26,10 @@ export default function TabsLayout() {
       <Tabs.Screen name="compare" options={{
         title: 'Comparativo',
         tabBarIcon: ({ color, size }) => <GitCompare color={color} size={size} />
+      }} />
+      <Tabs.Screen name="extract" options={{
+        title: 'Extrair',
+        tabBarIcon: ({ color, size }) => <Sparkles color={color} size={size} />
       }} />
     </Tabs>
   )

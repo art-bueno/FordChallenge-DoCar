@@ -22,17 +22,15 @@ function findPdfPath(brand: string, model: string, version: string): string | nu
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim()
-
   const filename = PDF_MAP[key]
   if (!filename) return null
-
   const fullPath = path.join(process.cwd(), 'pdfs', filename)
   return fs.existsSync(fullPath) ? fullPath : null
 }
 
 function mapSpecsToEntity(s: Record<string, unknown>) {
-  const b = (v: unknown) => v === null ? null : Number(v)
-  const n = (v: unknown) => v === null ? null : Number(v)
+  const b = (v: unknown) => (v === null || v === undefined) ? null : Number(v)
+  const n = (v: unknown) => (v === null || v === undefined) ? null : Number(v)
 
   return {
     pesoOrdemMarchaKg:              n(s['peso_ordem_marcha_kg']),
@@ -178,24 +176,29 @@ function mapSpecsToEntity(s: Record<string, unknown>) {
 
 export async function vehicleRoutes(app: FastifyInstance) {
   const vehicleRepo = AppDataSource.getRepository(Vehicle)
-  const specRepo = AppDataSource.getRepository(VehicleSpec)
+  const specRepo    = AppDataSource.getRepository(VehicleSpec)
 
   app.get('/vehicles', {
     preHandler: [authenticate]
   }, async (req: AuthenticatedRequest, reply) => {
     await logAudit('list_vehicles', req, 'success')
-    return vehicleRepo.find({ relations: ['spec', 'segment'] })
+    const all = await vehicleRepo.find({ relations: ['spec', 'segment'] })
+    const withSpecs = all.filter(v => v.spec !== null && v.spec.potenciaCv !== null)
+    const seen = new Set<string>()
+    const unique = withSpecs.filter(v => {
+      const key = `${v.brand.toLowerCase()}-${v.model.toLowerCase()}-${v.version.toLowerCase()}-${v.yearModel}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    return unique
   })
 
   app.get('/vehicles/:id', {
     preHandler: [authenticate]
   }, async (req: AuthenticatedRequest, reply) => {
     const { id } = req.params as { id: string }
-
-    const vehicle = await vehicleRepo.findOne({
-      where: { id },
-      relations: ['spec', 'segment']
-    })
+    const vehicle = await vehicleRepo.findOne({ where: { id }, relations: ['spec', 'segment'] })
 
     if (!vehicle) {
       await logAudit('get_vehicle', req, 'error', { id }, 'Veículo não encontrado')
@@ -204,6 +207,21 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
     await logAudit('get_vehicle', req, 'success', { id })
     return vehicle
+  })
+
+  app.delete('/vehicles/:id', {
+    preHandler: [authenticate, requireRole('admin')]
+  }, async (req: AuthenticatedRequest, reply) => {
+    const { id } = req.params as { id: string }
+
+    const vehicle = await vehicleRepo.findOne({ where: { id }, relations: ['spec'] })
+    if (!vehicle) return reply.status(404).send({ error: 'Veículo não encontrado' })
+
+    if (vehicle.spec) await specRepo.delete({ vehicle: { id } })
+    await vehicleRepo.delete(id)
+
+    await logAudit('delete_vehicle', req, 'success', { id })
+    return reply.send({ message: 'Veículo removido com sucesso' })
   })
 
   app.post('/vehicles', {
@@ -225,12 +243,8 @@ export async function vehicleRoutes(app: FastifyInstance) {
     }
   }, async (req: AuthenticatedRequest, reply) => {
     const { brand, model, version, yearModel, yearModelEnd, isMidyear } = req.body as {
-      brand: string
-      model: string
-      version: string
-      yearModel?: number
-      yearModelEnd?: number
-      isMidyear?: boolean
+      brand: string; model: string; version: string
+      yearModel?: number; yearModelEnd?: number; isMidyear?: boolean
     }
 
     const vehicle = vehicleRepo.create({ brand, model, version, yearModel, yearModelEnd, isMidyear })
@@ -259,32 +273,33 @@ export async function vehicleRoutes(app: FastifyInstance) {
     }
   }, async (req: AuthenticatedRequest, reply) => {
     const { brand, model, version, yearModel, yearModelEnd, isMidyear } = req.body as {
-      brand: string
-      model: string
-      version: string
-      yearModel: number
-      yearModelEnd?: number
-      isMidyear?: boolean
+      brand: string; model: string; version: string
+      yearModel: number; yearModelEnd?: number; isMidyear?: boolean
     }
 
-    const pdfPath = findPdfPath(brand, model, version)
-    const source = pdfPath ? 'pdf_extracted' : 'ia_generated'
+    const existing = await vehicleRepo.findOne({
+      where: { brand, model, version, yearModel },
+      relations: ['spec']
+    })
+
+    if (existing?.spec) {
+      await logAudit('extract', req, 'success', { brand, model, version, yearModel, source: 'db_cache' })
+      return reply.status(200).send({ vehicle: existing, spec: existing.spec, source: 'db_cache' })
+    }
+
+    const pdfPath = null
+    const source  = 'ia_generated'
 
     try {
-      const specs = pdfPath
-        ? await extractVehicleSpecsFromPdf(pdfPath, brand, model, version, yearModel)
-        : await extractVehicleSpecs(brand, model, version, yearModel)
+      const specs = await extractVehicleSpecs(brand, model, version, yearModel)
 
-      const vehicle = vehicleRepo.create({
+      const vehicle = existing ?? vehicleRepo.create({
         brand, model, version, yearModel, yearModelEnd,
         isMidyear: isMidyear ?? false
       })
-      await vehicleRepo.save(vehicle)
+      if (!existing) await vehicleRepo.save(vehicle)
 
-      const spec = specRepo.create({
-        vehicle, source, status: 'active',
-        ...mapSpecsToEntity(specs)
-      })
+      const spec = specRepo.create({ vehicle, source, status: 'active', ...mapSpecsToEntity(specs) })
       await specRepo.save(spec)
 
       await logAudit('extract', req, 'success', { brand, model, version, yearModel, source })
@@ -292,6 +307,7 @@ export async function vehicleRoutes(app: FastifyInstance) {
 
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Erro desconhecido'
+      console.error('[EXTRACT ERROR]', err)
       await logAudit('extract', req, 'error', { brand, model, version, yearModel }, msg)
       return reply.status(500).send({ error: 'Falha na extração', message: msg })
     }

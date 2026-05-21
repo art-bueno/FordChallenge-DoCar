@@ -12,15 +12,44 @@ import { adminRoutes } from './routes/admin'
 import { verifyToken } from './services/auth'
 import { logAudit } from './services/audit'
 
-const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || 'http://localhost:3000,http://localhost:8081')
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map(o => o.trim())
+  .filter(Boolean)
 
 const app = Fastify({ logger: true })
+
+app.register(cors, {
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true)
+    if (
+      ALLOWED_ORIGINS.includes(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)
+    ) {
+      return cb(null, true)
+    }
+    cb(new Error('Origem não permitida pelo CORS'), false)
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Signature'],
+  credentials: true
+})
+
+app.register(helmet, { contentSecurityPolicy: false })
+
+app.register(rateLimit, {
+  max: 30,
+  timeWindow: '1 minute',
+  errorResponseBuilder: () => ({
+    error: 'Too Many Requests',
+    message: 'Limite de 30 requisições por minuto atingido'
+  })
+})
 
 app.addHook('onRequest', async (req: any, reply) => {
   const publicRoutes = ['/health', '/api/auth/login', '/api/auth/refresh', '/api/auth/register']
   if (publicRoutes.some(r => req.url.startsWith(r))) return
+  if (req.method === 'OPTIONS') return
 
   const authHeader = req.headers['authorization']
 
@@ -54,30 +83,6 @@ app.addHook('onResponse', async (req: any, reply) => {
       `Acesso negado com status ${reply.statusCode}`
     )
   }
-})
-
-app.register(cors, {
-  origin: (origin, cb) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      cb(null, true)
-    } else {
-      cb(new Error('Origem não permitida pelo CORS'), false)
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Signature'],
-  credentials: true
-})
-
-app.register(helmet, { contentSecurityPolicy: false })
-
-app.register(rateLimit, {
-  max: 30,
-  timeWindow: '1 minute',
-  errorResponseBuilder: () => ({
-    error: 'Too Many Requests',
-    message: 'Limite de 30 requisições por minuto atingido'
-  })
 })
 
 app.setErrorHandler((error, req, reply) => {

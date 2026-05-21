@@ -44,13 +44,14 @@ export default function DashboardScreen() {
 
   const brands = [...new Set(vehicles.map(v => v.brand))]
   const withSpecs = vehicles.filter(v => v.spec?.potenciaCv).length
-  const maxPower = Math.max(...vehicles.map(v => v.spec?.potenciaCv || 0))
+  const powerValues = vehicles.map(v => v.spec?.potenciaCv ?? 0).filter(v => v > 0)
+  const maxPower = powerValues.length > 0 ? Math.max(...powerValues) : null
 
   const stats = [
     { label: 'Veículos', value: vehicles.length, icon: Car, color: '#3b82f6' },
     { label: 'Marcas', value: brands.length, icon: BarChart3, color: '#8b5cf6' },
     { label: 'Com specs', value: withSpecs, icon: TrendingUp, color: '#10b981' },
-    { label: 'Max cv', value: maxPower || '—', icon: Zap, color: '#f59e0b' },
+    { label: 'Max cv', value: maxPower ?? '—', icon: Zap, color: '#f59e0b' },
   ]
 
   return (
