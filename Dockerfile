@@ -8,13 +8,14 @@ RUN npm install -g pnpm
 
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY packages/database/package.json ./packages/database/
 COPY apps/api/package.json ./apps/api/
 COPY apps/mobile/package.json ./apps/mobile/
 COPY apps/web/package.json ./apps/web/
 
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm config set enable-pre-post-scripts true && \
+    pnpm install --no-frozen-lockfile
 
 COPY packages/database ./packages/database
 RUN cd packages/database && pnpm build
