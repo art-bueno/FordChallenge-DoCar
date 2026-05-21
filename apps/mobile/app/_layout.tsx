@@ -1,47 +1,32 @@
-/*a*/
 import { useEffect, useState } from 'react'
-import { Stack } from 'expo-router'
+import { Stack, useRouter } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { useRouter, useSegments } from 'expo-router'
 import { storage } from '@/services/api'
 
-function AuthGuard({ children }: { children: React.ReactNode }) {
+export default function RootLayout() {
   const router = useRouter()
-  const segments = useSegments()
-  const [checked, setChecked] = useState(false)
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    checkAuth()
-  }, [])
-
-  async function checkAuth() {
-    const token = await storage.get('access_token')
-    const inAuth = segments[0] === '(auth)'
-
-    if (!token && !inAuth) {
-      router.replace('/(auth)/login')
-    } else if (token && inAuth) {
-      router.replace('/(tabs)')
+    async function checkAuth() {
+      const token = await storage.get('access_token')
+      if (!token) {
+        router.replace('/(auth)/login')
+      }
+      setReady(true)
     }
 
-    setChecked(true)
-  }
+    const timer = setTimeout(checkAuth, 50)
+    return () => clearTimeout(timer)
+  }, [])
 
-  if (!checked) return null
-
-  return <>{children}</>
-}
-
-export default function RootLayout() {
   return (
     <>
       <StatusBar style="light" />
-      <AuthGuard>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </AuthGuard>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
     </>
   )
 }
