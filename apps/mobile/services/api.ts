@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { Platform } from 'react-native'
 
-const API_URL = 'https://api-production-ad26.up.railway.app/api'
+const API_URL = 'https://fordchallenge-docar.onrender.com/api'
 const HMAC_SECRET = 'ford-intel-hmac-secret-2025'
 
 async function generateHmac(body: string): Promise<string> {
